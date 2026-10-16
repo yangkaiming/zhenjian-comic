@@ -1,0 +1,71 @@
+/* feedback overrides: revert to original pill interaction + smaller tabs. Imported after global.css. */
+
+.feedback-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.feedback-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.feedback-cat:hover {
+  border-color: var(--border-strong);
+}
+.feedback-cat.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.feedback-cat-icon {
+  font-size: 14px;
+}
+.feedback-input {
+  min-height: 96px;
+  line-height: 1.6;
+  padding: 10px 12px;
+}
+.feedback-history {
+  margin-top: 18px;
+  border-top: 1px dashed var(--border);
+  padding-top: 14px;
+}
+.feedback-history-reply {
+  background: rgba(236, 72, 153, 0.08);
+  border-left: 3px solid #ec4899;
+  padding: 8px 10px;
+}
+.feedback-reply-k {
+  color: #ec4899;
+}
+.feedback-status.pending {
+  color: var(--accent-2);
+  background: var(--accent-soft);
+}
+.feedback-status.replied {
+  color: #ec4899;
+  background: rgba(236, 72, 153, 0.14);
+}
+
+.fb-tabs {
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 3px;
+  border-radius: 9px;
+}
+.fb-tab {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 7px;
+}

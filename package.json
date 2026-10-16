@@ -1,0 +1,117 @@
+{
+  "name": "zhenjian-comic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "帧间漫画桌面端",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix web install",
+    "dev": "concurrently -k -n SERVER,WEB,APP -c cyan,magenta,green \"npm:dev:server\" \"npm:dev:web\" \"npm:dev:app\"",
+    "dev:server": "cross-env NODE_ENV=development tsx watch server/src/index.ts",
+    "dev:web": "npm --prefix web run dev",
+    "dev:app": "cross-env SPAWN_SERVER=false ELECTRON_DEV_URL=http://localhost:5173 electron .",
+    "build:server": "tsc -p server/tsconfig.json",
+    "build:web": "npm --prefix web run build",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:server && npm run build:web && npm run build:electron",
+    "start": "npm run build && electron .",
+    "seed": "tsx server/src/scripts/seed.ts",
+    "localize:db": "tsx server/src/scripts/localize-db.ts",
+    "purge:single": "tsx server/src/scripts/purge-single-chapter.ts",
+    "migrate:cloud": "tsx server/src/scripts/migrate-to-cloud.ts",
+    "crawl": "python crawler/crawl_mangadex.py --limit 120",
+    "crawl:more": "python crawler/crawl_mangadex.py --limit 240 --chapters 80",
+    "crawl:graph:install": "pip install -r crawler/comic_graph/requirements.txt",
+    "crawl:graph": "python crawler/comic_graph/run.py",
+    "crawl:graph:seed": "npm run crawl:graph && npm run seed -- --force",
+    "clean:release": "node scripts/clean-release.cjs",
+    "patch:icon": "node scripts/patch-exe-icon.cjs",
+    "refresh:icon": "node scripts/refresh-icon-cache.cjs",
+    "predist": "npm run clean:release",
+    "dist": "node scripts/package.cjs",
+    "predist:sfx": "npm run clean:release",
+    "dist:sfx": "node scripts/package.cjs && node scripts/build-sfx.cjs",
+    "predist:installer": "npm run clean:release",
+    "dist:installer": "node scripts/package.cjs --installer"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  },
+  "build": {
+    "appId": "com.zhenjian.comic",
+    "productName": "帧间漫画",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.prod",
+        "to": ".env.prod"
+      },
+      {
+        "from": "build/assets/icon-256.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "build/assets/icon-256.png",
+        "to": "web-dist/favicon.png"
+      },
+      {
+        "from": "server/dist",
+        "to": "server/dist"
+      },
+      {
+        "from": "server/node_modules",
+        "to": "server/node_modules",
+        "filter": [
+          "**/*",
+          "!**/.cache/**",
+          "!**/.bin/**",
+          "!**/@types/**",
+          "!**/typescript/**",
+          "!**/zhenjian-comic/**"
+        ]
+      },
+      {
+        "from": "server/package.json",
+        "to": "server/package.json"
+      },
+      {
+        "from": "web/dist",
+        "to": "web-dist"
+      },
+      {
+        "from": "crawler/output/comics.json",
+        "to": "crawler/output/comics.json"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "帧间漫画"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/assets/icon-256.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/assets/icon-256.png"
+    }
+  }
+}

@@ -1,0 +1,558 @@
+.reader {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+}
+
+/* 阅读器画布背景跟随应用主题（不再提供单独的阅读背景色） */
+.reader-canvas {
+  flex: 1;
+  position: relative;
+  background: var(--reader-bg);
+  overflow: hidden;
+  transition: background 0.2s;
+}
+
+.reader-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.reader-dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.reader-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 宽于 maxWidth(1100px) 的窗口下让整列居中，避免图片贴左 */
+  margin: 0 auto;
+  padding: 0 0 60vh;
+}
+
+.reader-page {
+  position: relative;
+  display: block;
+  margin: 0 auto;
+  line-height: 0;
+}
+
+/* 远程图片加载前的占位骨架，避免页面高度塌陷跳动 */
+.reader-pages .reader-page {
+  min-height: 260px;
+  background: var(--page-skeleton, rgba(128, 128, 128, 0.12));
+}
+
+.reader-page img {
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.reader.fit-width .reader-page img {
+  width: 100%;
+  height: auto;
+}
+
+.reader.fit-height .reader-page img {
+  height: 100vh;
+  width: auto;
+}
+
+.reader.fit-origin .reader-page img {
+  width: auto;
+  height: auto;
+}
+
+/* 自定义尺寸：图片为块级且宽度为百分比，需 margin auto 才能在页面容器内水平居中（否则左对齐） */
+.reader.fit-custom .reader-page img {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.reader.gap .reader-page {
+  margin-bottom: 10px;
+}
+
+/* 单页模式 */
+.reader-single {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  position: relative;
+}
+
+.reader-single img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* 顶栏 */
+.reader-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  z-index: 20;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent);
+  color: #fff;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.reader-bar.hidden {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.reader-bar .rbtn {
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.reader-bar .rbtn:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.reader-bar .rbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reader-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 单页/滚动图片的加载与错误占位，覆盖在图片之上 */
+.reader-img-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  z-index: 2;
+}
+
+.reader-img-el {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.reader-img-el.is-loaded {
+  opacity: 1;
+}
+
+/* 底部条 */
+.reader-foot {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  z-index: 20;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.66), transparent);
+  color: #fff;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.reader-foot.hidden {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+
+.reader-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  outline: none;
+}
+
+.reader-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+
+.reader-page-no {
+  font-size: 13px;
+  min-width: 92px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 抽屉 */
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 30;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.22s ease;
+  color: var(--text);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.drawer.right {
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.drawer.left {
+  left: 0;
+}
+
+.drawer.hidden-left {
+  transform: translateX(-100%);
+}
+
+.drawer.hidden-right {
+  transform: translateX(100%);
+}
+
+.drawer-head {
+  height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+/* 设置抽屉内的分组标题（阅读设置 / 功能） */
+.drawer-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 4px 0 12px;
+  padding-left: 9px;
+  border-left: 3px solid var(--accent);
+  line-height: 1.2;
+}
+
+.drawer-body > .drawer-section-title:first-child {
+  margin-top: 0;
+}
+
+.drawer-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 25;
+}
+
+.setting-group {
+  margin-bottom: 14px;
+}
+
+/* 卡片式设置分组 */
+.setting-card {
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.setting-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* 标签 + 数值（亮度、图片尺寸等）左右分布 */
+.setting-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.setting-label-row .setting-label {
+  margin-bottom: 0;
+}
+.setting-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 卡片内嵌的子设置（如自定义尺寸） */
+.setting-sub {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.setting-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.setting-opt {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  transition: all 0.14s ease;
+}
+.setting-opt:hover:not(.active) {
+  border-color: var(--accent);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.setting-opt.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), #ff4d6d);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(255, 77, 109, 0.32);
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.swatch.active {
+  border-color: var(--accent);
+}
+
+.reader-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.chapter-mini {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.chapter-mini:hover {
+  background: var(--hover);
+}
+
+/* 目录抽屉标题：flex 子项需 min-width:0 才能正确省略 */
+.chapter-mini-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chapter-mini > span:last-child {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.chapter-mini.active {
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.reader-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 13px;
+  z-index: 22;
+  pointer-events: none;
+}
+
+/* 全屏时常驻的退出提示 */
+.reader-fs-hint {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  z-index: 22;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
+/* 图片右键菜单 */
+.img-menu-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+/* 查看大图：全屏遮罩 + 顶部工具条 + 可缩放平移的舞台 */
+.img-zoom-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.94);
+  display: flex;
+  flex-direction: column;
+}
+.img-zoom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  flex: 0 0 auto;
+  color: #fff;
+}
+.zbtn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.zbtn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.zbtn-scale {
+  min-width: 54px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.img-zoom-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.img-zoom-stage img {
+  max-width: 92vw;
+  max-height: 80vh;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+}
+
+.img-menu {
+  position: fixed;
+  z-index: 61;
+  min-width: 132px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.img-menu button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.img-menu button:hover {
+  background: var(--hover);
+}

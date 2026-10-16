@@ -1,0 +1,16 @@
+node_modules
+dist-electron
+dist
+release
+web/dist
+server/dist
+crawler/output
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+.codebuddy/
+.env.local
+.env
+.env.prod
+.env.prod.*

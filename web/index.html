@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- MangaDex 对外部 Referer 有防盗链，去掉 Referer 即可拿到真图 -->
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:* https://uploads.mangadex.org https://*.mangadex.network https://*.mangadex.org https://*; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://api.mangadex.org" />
+    <!-- 打包时由 extraResources 注入 web-dist/favicon.png；开发态缺失不影响功能 -->
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <title>帧间漫画</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
