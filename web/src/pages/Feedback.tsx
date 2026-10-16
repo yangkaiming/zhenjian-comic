@@ -44,9 +44,9 @@ export default function Feedback() {
   };
 
   useEffect(() => {
-    loadMine();
+    if (user) loadMine();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user]);
 
   const submit = async () => {
     if (!content.trim()) {

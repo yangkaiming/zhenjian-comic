@@ -92,6 +92,7 @@ function ReplyBox({
   onChange,
   onCancel,
   onSubmit,
+  busy,
 }: {
   name: string;
   indent?: boolean;
@@ -99,6 +100,7 @@ function ReplyBox({
   onChange: (v: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
+  busy?: boolean;
 }) {
   return (
     <div className="panel reply-box" style={indent ? { marginLeft: 38 } : undefined}>
@@ -106,7 +108,7 @@ function ReplyBox({
         <span className="muted" style={{ fontSize: 13 }}>
           回复 @{name}
         </span>
-        <button className="link-more" style={{ fontSize: 12 }} onClick={onCancel}>
+        <button className="link-more" style={{ fontSize: 12 }} onClick={onCancel} disabled={busy}>
           取消
         </button>
       </div>
@@ -117,12 +119,12 @@ function ReplyBox({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') onSubmit();
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !busy) onSubmit();
         }}
       />
       <div className="row" style={{ marginTop: 10, justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary" onClick={onSubmit}>
-          发送回复
+        <button className="btn btn-primary" onClick={onSubmit} disabled={busy}>
+          {busy ? '发送中…' : '发送回复'}
         </button>
       </div>
     </div>
@@ -163,6 +165,8 @@ export default function Detail() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDel, setConfirmDel] = useState<CommentItem | null>(null);
   const [delBusy, setDelBusy] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [likingId, setLikingId] = useState('');
   const [refreshProg, setRefreshProg] = useState<{
     phase: 'fetching' | 'saving' | 'done';
     fetched: number;
@@ -315,6 +319,8 @@ export default function Detail() {
     }
     const text = (asReply ? replyDraft : draft).trim();
     if (!text) return;
+    if (posting) return; // 防连点：发布中忽略重复点击
+    setPosting(true);
     try {
       await api.addComment(
         comic._id,
@@ -334,6 +340,8 @@ export default function Detail() {
       toast.success(asReply ? '回复成功' : '评论已发布');
     } catch (e) {
       toast.error((e as Error).message || (asReply ? '回复失败' : '评论失败'));
+    } finally {
+      setPosting(false);
     }
   };
 
@@ -342,6 +350,8 @@ export default function Detail() {
       navigate('/login');
       return;
     }
+    if (likingId === c._id) return; // 防连点：同一条点赞请求未结束前忽略
+    setLikingId(c._id);
     try {
       const r = await api.likeComment(c._id);
       setComments((list) =>
@@ -349,6 +359,8 @@ export default function Detail() {
       );
     } catch {
       /* 忽略 */
+    } finally {
+      setLikingId('');
     }
   };
 
@@ -595,8 +607,8 @@ export default function Detail() {
             onChange={(e) => setDraft(e.target.value)}
           />
           <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
-            <button className="btn btn-primary" onClick={() => postComment(false)}>
-              发布评论
+            <button className="btn btn-primary" onClick={() => postComment(false)} disabled={posting}>
+              {posting ? '发布中…' : '发布评论'}
             </button>
           </div>
         </div>
@@ -615,6 +627,7 @@ export default function Detail() {
                     setReplyDraft('');
                   }}
                   onSubmit={() => postComment(true)}
+                  busy={posting}
                 />
               )}
               {(repliesByParent[c._id] || []).map((r) => (
@@ -631,6 +644,7 @@ export default function Detail() {
                         setReplyDraft('');
                       }}
                       onSubmit={() => postComment(true)}
+                  busy={posting}
                     />
                   )}
                 </Fragment>
