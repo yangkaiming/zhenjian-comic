@@ -19,6 +19,10 @@ export interface ComicBridge {
   saveImage: (url: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   onWinStateChange: (cb: (state: WinState) => void) => () => void;
   openWindow: (route: string) => void;
+  /** 用系统默认浏览器打开外部链接（如下载页） */
+  openExternal: (url: string) => Promise<void>;
+  /** 退出整个应用 */
+  quitApp: () => void;
 }
 
 const api: ComicBridge = {
@@ -35,6 +39,8 @@ const api: ComicBridge = {
   setWindowBgColor: (color) => ipcRenderer.invoke('win:bg', color),
   saveImage: (url, filename) => ipcRenderer.invoke('img:save', { url, filename }),
   openWindow: (route) => ipcRenderer.invoke('win:open', route),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  quitApp: () => ipcRenderer.send('app:quit'),
 
   onWinStateChange: (cb) => {
     const listener = (_e: unknown, state: WinState) => cb(state);

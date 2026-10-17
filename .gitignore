@@ -10,6 +10,7 @@ crawler/output
 __pycache__/
 *.pyc
 .codebuddy/
+version.json
 .env.local
 .env
 .env.prod

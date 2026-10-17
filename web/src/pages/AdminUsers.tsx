@@ -149,6 +149,7 @@ export default function AdminUsers() {
             <span className="col-user">用户</span>
             <span className="col-role">角色</span>
             <span className="col-online">在线</span>
+            <span className="col-login">上次登录</span>
             <span className="col-time">注册时间</span>
             <span className="col-act">操作</span>
           </div>
@@ -179,6 +180,7 @@ export default function AdminUsers() {
                     {u.online ? '在线' : '离线'}
                   </span>
                 </span>
+                <span className="col-login muted">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : '从未登录'}</span>
                 <span className="col-time muted">{formatDateTime(u.createdAt)}</span>
                 <span className="col-act">
                   <button

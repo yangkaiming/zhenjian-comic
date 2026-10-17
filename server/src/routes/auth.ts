@@ -60,6 +60,12 @@ router.post('/login', async (req: Request, res: Response) => {
   if (!user) return res.status(401).json({ message: '账号不存在' });
   const ok = bcrypt.compareSync(String(password || ''), user.password);
   if (!ok) return res.status(401).json({ message: '密码错误' });
+  // 记录上次登录时间（不影响返回，失败也不阻断登录）
+  try {
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+  } catch {
+    /* 忽略 */
+  }
   return res.json({ token: signToken(String(user._id)), user: publicUser(user) });
 });
 

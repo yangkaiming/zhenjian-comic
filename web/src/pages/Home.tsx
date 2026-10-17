@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, assetUrl } from '../api';
+import { api, assetUrl, bridge } from '../api';
 import type { Comic, HomeData, ShelfItem } from '../types';
 import ComicCard from '../components/ComicCard';
 import { Empty } from '../components/States';
+import UpdateModal from '../components/UpdateModal';
+import type { UpdateInfo } from '../components/UpdateModal';
 import { useAuth } from '../store/auth';
+import { useUpdate } from '../store/update';
 import { formatDate } from '../utils/format';
+import { versionLabel } from '../version';
+
+/**
+ * 更新弹窗「每次启动只展示一次」：模块级标志，跨首页重挂载/路由切换保持，
+ * 刷新或重启应用后重置。避免每次切回首页都重复弹更新提示。
+ */
+let updatePromptShown = false;
 
 /** 首页加载骨架屏：比转圈更贴近最终布局，减少等待焦虑 */
 function HomeSkeleton() {
@@ -34,6 +44,10 @@ export default function Home() {
   const [q, setQ] = useState('');
   const navigate = useNavigate();
   const user = useAuth((s) => s.user);
+  const currentVersion = versionLabel(bridge?.appVersion);
+  const latestInfo = useUpdate((s) => s.latest);
+  const hasUpdate = useUpdate((s) => s.hasUpdate);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -57,6 +71,14 @@ export default function Home() {
       .then((r) => setShelf(r.items.slice(0, 8)))
       .catch(() => setShelf([]));
   }, [user]);
+
+  // 首页更新提示：有新版本且本次启动尚未展示过时弹一次（版本检查由 Layout 挂载时统一完成）
+  useEffect(() => {
+    if (hasUpdate && latestInfo && !updatePromptShown) {
+      updatePromptShown = true; // 本次启动已展示过，之后不再重复弹
+      setUpdate(latestInfo);
+    }
+  }, [hasUpdate, latestInfo]);
 
   const banners = data?.banners || [];
 
@@ -82,6 +104,11 @@ export default function Home() {
               aria-hidden={i !== bannerIndex}
               onClick={() => navigate(`/comic/${b._id}`)}
             >
+              {/* 背景层：同一张图放大模糊做衬底，避免 16:9 原图被裁切 */}
+              <div
+                className="banner-blur"
+                style={{ backgroundImage: `url("${assetUrl(b.banner || b.cover)}")` }}
+              />
               <img src={assetUrl(b.banner || b.cover)} alt={b.title} draggable={false} />
               <div className="banner-mask" />
               <div className="banner-info">
@@ -242,6 +269,8 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      {update && <UpdateModal info={update} current={currentVersion} onClose={() => setUpdate(null)} />}
     </div>
   );
 }

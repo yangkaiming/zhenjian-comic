@@ -16,6 +16,7 @@ function publicUser(u: {
   role: string;
   createdAt?: Date;
   lastActiveAt?: Date;
+  lastLoginAt?: Date;
 }) {
   const lastActive = u.lastActiveAt ? new Date(u.lastActiveAt) : null;
   const online = !!lastActive && Date.now() - lastActive.getTime() < ONLINE_THRESHOLD_MS;
@@ -27,6 +28,7 @@ function publicUser(u: {
     role: u.role === 'admin' ? 'admin' : 'user',
     createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : '',
     lastActiveAt: lastActive ? lastActive.toISOString() : '',
+    lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : '',
     online,
   };
 }

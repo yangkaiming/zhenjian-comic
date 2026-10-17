@@ -123,6 +123,8 @@ export interface UserItem {
   createdAt: string;
   /** 最近活跃时间（ISO 字符串），用于在线状态判断 */
   lastActiveAt?: string;
+  /** 上次登录时间（ISO 字符串） */
+  lastLoginAt?: string;
   /** 是否在线（最近 5 分钟内有活动） */
   online?: boolean;
 }
@@ -178,6 +180,10 @@ export interface ComicBridge {
   saveImage: (url: string, filename: string) => Promise<{ ok: boolean; path?: string; error?: string }>;
   onWinStateChange: (cb: (state: WinState) => void) => () => void;
   openWindow: (route: string) => void;
+  /** 用系统默认浏览器打开外部链接（如更新下载页） */
+  openExternal?: (url: string) => Promise<void>;
+  /** 退出整个应用 */
+  quitApp?: () => void;
 }
 
 declare global {

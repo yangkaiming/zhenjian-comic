@@ -1,6 +1,6 @@
 {
   "name": "zhenjian-comic",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "帧间漫画桌面端",
   "main": "dist-electron/main.js",
@@ -10,6 +10,8 @@
     "dev:server": "cross-env NODE_ENV=development tsx watch server/src/index.ts",
     "dev:web": "npm --prefix web run dev",
     "dev:app": "cross-env SPAWN_SERVER=false ELECTRON_DEV_URL=http://localhost:5173 electron .",
+    "dev:server:online": "cross-env NODE_ENV=development COMIC_DATA_ENV=prod tsx watch server/src/index.ts",
+    "dev:online": "concurrently -k -n SERVER,WEB,APP -c cyan,magenta,green \"npm:dev:server:online\" \"npm:dev:web\" \"npm:dev:app\"",
     "build:server": "tsc -p server/tsconfig.json",
     "build:web": "npm --prefix web run build",
     "build:electron": "tsc -p electron/tsconfig.json",
@@ -27,10 +29,9 @@
     "clean:release": "node scripts/clean-release.cjs",
     "patch:icon": "node scripts/patch-exe-icon.cjs",
     "refresh:icon": "node scripts/refresh-icon-cache.cjs",
+    "version:json": "node scripts/gen-version-json.cjs",
     "predist": "npm run clean:release",
     "dist": "node scripts/package.cjs",
-    "predist:sfx": "npm run clean:release",
-    "dist:sfx": "node scripts/package.cjs && node scripts/build-sfx.cjs",
     "predist:installer": "npm run clean:release",
     "dist:installer": "node scripts/package.cjs --installer"
   },
@@ -103,7 +104,8 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
-      "shortcutName": "帧间漫画"
+      "shortcutName": "帧间漫画",
+      "artifactName": "${productName} ${version}.exe"
     },
     "mac": {
       "target": "dmg",

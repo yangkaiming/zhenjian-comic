@@ -153,7 +153,19 @@ export const api = {
   likeComment: (id: string) => request<{ likes: number; liked: boolean }>(`/api/comments/${id}/like`, { method: 'POST' }),
   deleteComment: (id: string) => request<{ ok: boolean }>(`/api/comments/${id}`, { method: 'DELETE' }),
 
-  appLatest: () => request<{ version: string; url: string; notes: string }>('/api/app/latest'),
+  appLatest: () =>
+    request<{
+      version: string;
+      url: string;
+      notes: string | Array<{ title: string; items: string[] }>;
+      buildTime?: string;
+      versions?: Array<{
+        version: string;
+        buildTime?: string;
+        notes: string | Array<{ title: string; items: string[] }>;
+        url?: string;
+      }>;
+    }>('/api/app/latest'),
 
   comicSources: () =>
     request<{

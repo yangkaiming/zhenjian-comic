@@ -159,21 +159,36 @@ async function startBackend(): Promise<boolean> {
 
   process.env.PORT = String(PORT);
 
-  if (!IS_DEV && fs.existsSync(p.serverDist)) {
-    // 生产模式：直接在主进程内加载编译后的服务端
-    try {
-      const mod = require(p.serverDist) as { startServer?: () => Promise<unknown> };
-      if (typeof mod.startServer === 'function') {
-        await mod.startServer();
-        console.log('[app] 服务端已在主进程内启动');
-        return true;
+  if (!IS_DEV) {
+    // 生产 / npm start：直接在主进程内加载编译后的服务端
+    if (fs.existsSync(p.serverDist)) {
+      try {
+        const mod = require(p.serverDist) as { startServer?: () => Promise<unknown> };
+        if (typeof mod.startServer === 'function') {
+          await mod.startServer();
+          console.log('[app] 服务端已在主进程内启动');
+          return true;
+        }
+        throw new Error('server/dist 未导出 startServer');
+      } catch (err) {
+        console.error('[app] 内置服务端加载失败:', err);
+        // 打包态没有 node/npx/tsx，回退也起不来 → 直接报明确错误，不再 spawn npx
+        if (app.isPackaged) {
+          dialog.showErrorBox(
+            '服务端启动失败',
+            `加载内置服务端出错：\n${(err as Error)?.message || String(err)}\n\n请尝试重新打包；若持续出现请联系作者。`,
+          );
+          return false;
+        }
+        // 非打包态（源码 electron .）：落到下面的 tsx 回退
       }
-    } catch (err) {
-      console.error('[app] 内置服务端加载失败:', err);
+    } else if (app.isPackaged) {
+      dialog.showErrorBox('服务端缺失', '打包不完整：未找到 server/dist，请重新打包。');
+      return false;
     }
   }
 
-  // 开发模式：用 tsx 启动 TS 源码，便于热重载
+  // 回退：用 tsx 跑 TS 源码（仅非打包态可用，依赖本机 node/tsx）
   const binName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
   const tsxBin = path.join(p.root, 'node_modules', '.bin', binName);
   const cmd = fs.existsSync(tsxBin) ? tsxBin : 'npx';
@@ -183,6 +198,14 @@ async function startBackend(): Promise<boolean> {
     cwd: p.serverCwd,
     env: process.env,
     windowsHide: true,
+  });
+  // 启动失败（如找不到 npx/tsx）时给出明确提示，避免未捕获异常崩溃
+  serverProcess.on('error', (e) => {
+    console.error('[app] 服务端子进程启动失败:', e);
+    dialog.showErrorBox(
+      '服务端启动失败',
+      `无法启动服务端进程：${e.message}\n\n请确认本机已安装 Node.js，且 npm/npx 在 PATH 中（或先执行 npm run build 生成 server/dist）。`,
+    );
   });
   serverProcess.stdout?.on('data', (d) => process.stdout.write(`[server] ${d}`));
   serverProcess.stderr?.on('data', (d) => process.stderr.write(`[server] ${d}`));
@@ -271,6 +294,15 @@ function registerIpc(): void {
   ipcMain.handle('win:bg', (e, color: string) => {
     senderWindow(e)?.setBackgroundColor(color || '#14131a');
   });
+
+  /** 用系统默认浏览器打开外部链接（如更新下载页） */
+  ipcMain.handle('shell:openExternal', async (_e, url: string) => {
+    const u = String(url || '');
+    if (/^https?:\/\//i.test(u)) await shell.openExternal(u);
+  });
+
+  /** 退出整个应用（如「立即更新」打开下载地址后退出，便于安装新版本） */
+  ipcMain.on('app:quit', () => app.quit());
 
   /** 打开独立管理窗口（如反馈处理、用户管理），同源加载指定路由并标记 popup 以隐藏侧边栏 */
   ipcMain.handle('win:open', (_e, route: string) => {

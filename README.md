@@ -219,6 +219,16 @@ npm run dev
 - `web`：http://localhost:5173 （vite）
 - Electron 窗口（自动连接 dev server）
 
+#### 本地连线上库（调试用）
+
+```bash
+npm run dev:online
+```
+
+和 `npm run dev` 一样（前端热更新 + Electron 窗口），但服务端以 `COMIC_DATA_ENV=prod` 启动，读 `.env.prod` 的 `MONGODB_URI_PROD` **直连线上 MongoDB**。启动日志会打印 `[config] 数据环境=prod（线上库）` 以便确认没连错库。
+
+> ⚠️ 此模式下所有读写都作用于**线上真实数据**，别用它灌测试数据；连不上线上库会直接报错退出（绝不回落到本地库）。
+
 ### 生产模式（编译后单进程运行）
 
 ```bash
@@ -262,15 +272,11 @@ npm run localize:db                          # 执行
 npm run dist           # 产出免安装目录 release/win-unpacked/（最快，日常试用）
 npm run dist:installer # 产出 Windows 安装包（推荐，约 1 分钟，图标正确）
 npm run refresh:icon   # 刷新 Windows 图标缓存（打包后让新图标立刻显示）
-
-npm run dist:sfx       # 可选：更小的自解压包（约 3 分钟 / 83MB，但安装包文件本身用 NSIS 默认图标）
 ```
 
 > 打包产物会自动使用**线上库**（`.env.prod` 的 `MONGODB_URI_PROD`，随包分发），无需再改任何配置。
 
 **推荐用 `npm run dist:installer`**：安装包图标正确（走 electron-builder 官方设图标流程），且已通过 `ELECTRON_BUILDER_COMPRESSION_LEVEL=1` 把默认的「7z 最高压缩（十几分钟）」提速到**约 1 分钟**，体积约 97MB。安装时**自选安装位置**（默认 `C:\Program Files\帧间漫画`，可改成 D 盘等任意目录，会记住上次选择）、桌面/开始菜单快捷方式，并附带卸载程序。
-
-> 若更在意体积，可用 `npm run dist:sfx`（约 83MB）；但它自制的 NSIS 安装包文件图标为默认图标（**安装后应用本身的图标不受影响**），故正式分发建议用 `dist:installer`。
 
 > 打包**不会修改** `server/node_modules`（体积优化由拷贝时过滤 devDeps 实现），开发环境不受影响。
 
@@ -281,8 +287,7 @@ npm run dist:sfx       # 可选：更小的自解压包（约 3 分钟 / 83MB，
 | 命令 | 产物位置 | 说明 |
 | --- | --- | --- |
 | `npm run dist` | `release/win-unpacked/` | **免安装目录**，里面有 `帧间漫画.exe`，双击即可运行，适合自己试用/分发给熟人 |
-| `npm run dist:installer` | `release/帧间漫画 Setup <版本号>.exe` | **推荐分发**：Windows 安装包（图标正确，约 1 分钟 / 97MB），双击走安装向导，可自选安装位置 |
-| `npm run dist:sfx` | `release/帧间漫画 Setup <版本号>.exe` | 更小的自解压包（83MB），安装包文件图标为默认图标；与 `dist:installer` 同名会互相覆盖 |
+| `npm run dist:installer` | `release/帧间漫画 <版本号>.exe` | **推荐分发**：Windows 安装包（图标正确，约 1 分钟 / 97MB），双击走安装向导，可自选安装位置 |
 | 都会生成 | `release/builder-debug.yml`、`*.blockmap` | 打包元数据 |
 
 安装包内包含的内容（安装后在 `resources/` 下）：
@@ -305,6 +310,18 @@ resources/
 | `release/` | **最终可分发的应用**（上面第一张表） |
 
 > 想重新打包前先清干净：直接删除 `release/` 目录即可（已在 `.gitignore` 中）。
+
+### 在线更新提示（COS version.json）
+
+应用每次打开首页会拉取远程版本清单，若其中的 `version` 比当前版本新，就在首页弹一个更新窗（展示最新版本号、更新说明、打包时间，「立即更新」跳转 `url` 下载地址）。
+
+配置方式：
+
+1. 发布新版本时生成清单：`npm run version:json`。`version.json` 是**数组、最新版本在最前**，每次运行会把当前版本（`version` 取自 package.json、`buildTime` 当前时间）作为新项插到最前面，并按版本去重、保留历史版本。`notes` 优先读取 `release-notes.md`，没有则手动填
+2. 编辑 `notes`（每行一条更新说明）与 `url`（新版本下载地址），上传到腾讯云 COS，复制其**永久对象地址**
+3. 把该地址填到 `.env.prod` 的 `APP_UPDATE_MANIFEST_URL`，重新打包
+
+> 由服务端 `/api/app/latest` 代理请求该地址（避免前端跨域）；只有版本确实更新才弹窗，拉取失败会静默忽略、不影响使用。
 
 ### 发布检查清单
 
@@ -358,7 +375,7 @@ comic/
 ├─ dist-electron/       # Electron 主进程编译产物（npm run build:electron）
 ├─ server/dist/         # 服务端编译产物（npm run build:server）
 ├─ web/dist/            # 前端产物（npm run build:web）
-└─ release/             # 打包产物（npm run dist / dist:sfx / dist:installer）
+└─ release/             # 打包产物（npm run dist / dist:installer）
 ```
 
 ---

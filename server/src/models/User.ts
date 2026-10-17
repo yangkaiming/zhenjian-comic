@@ -7,6 +7,8 @@ export interface IUser extends Document {
   avatar: string;
   role: 'user' | 'admin';
   lastActiveAt: Date;
+  /** 上次登录时间（登录成功时更新） */
+  lastLoginAt?: Date;
   createdAt: Date;
 }
 
@@ -18,6 +20,7 @@ const UserSchema = new Schema<IUser>(
     avatar: { type: String, default: '' },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     lastActiveAt: { type: Date, default: Date.now },
+    lastLoginAt: { type: Date },
   },
   { timestamps: true },
 );

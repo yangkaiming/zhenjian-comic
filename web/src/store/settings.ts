@@ -27,7 +27,7 @@ export const READER_BG_COLORS: Record<Exclude<ReaderBg, 'theme'>, string> = {
 export interface ReaderSettings {
   mode: ReaderMode;
   fit: ReaderFit;
-  /** 自定义尺寸百分比（fit=custom 时生效），50~300 */
+  /** 自定义尺寸百分比（fit=custom 时生效），20~300 */
   customScale: number;
   theme: AppTheme;
   brightness: number;
@@ -67,7 +67,7 @@ function load(): ReaderSettings {
         ...parsed,
         fit,
         theme,
-        customScale: Number.isFinite(customScale) ? Math.min(300, Math.max(50, Math.round(customScale))) : DEFAULT.customScale,
+        customScale: Number.isFinite(customScale) ? Math.min(300, Math.max(20, Math.round(customScale))) : DEFAULT.customScale,
         readerBg: READER_BG_KEYS.includes(parsed.readerBg as ReaderBg) ? (parsed.readerBg as ReaderBg) : 'theme',
       };
     }

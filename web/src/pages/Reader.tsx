@@ -357,7 +357,7 @@ export default function Reader() {
             <div className="muted">数据源（动漫屋）未公开页图，暂不支持阅读</div>
           </div>
           <div className="reader-bar">
-            <button className="rbtn" onClick={backToDetail}>
+            <button className="rbtn rbtn-back" onClick={backToDetail}>
               ← 返回详情
             </button>
             <div className="spacer" />
@@ -470,7 +470,7 @@ export default function Reader() {
 
         {/* 顶栏 */}
         <div className={`reader-bar${showBar ? '' : ' hidden'}`}>
-          <button className="rbtn" onClick={backToDetail}>
+          <button className="rbtn rbtn-back" onClick={backToDetail} title="Esc 也可返回">
             ← 返回详情
           </button>
           <span className="reader-title">
@@ -483,10 +483,18 @@ export default function Reader() {
           <button className="rbtn" disabled={!chapter.nextId} onClick={() => gotoChapter(chapter.nextId)}>
             下一话
           </button>
-          <button className="rbtn" onClick={() => setDrawer(drawer === 'chapters' ? 'none' : 'chapters')}>
+          <button
+            className="rbtn"
+            onClick={() => setDrawer(drawer === 'chapters' ? 'none' : 'chapters')}
+            title="目录（M）"
+          >
             目录
           </button>
-          <button className="rbtn" onClick={() => setDrawer(drawer === 'settings' ? 'none' : 'settings')}>
+          <button
+            className="rbtn"
+            onClick={() => setDrawer(drawer === 'settings' ? 'none' : 'settings')}
+            title="设置（S）"
+          >
             设置
           </button>
           <button className="rbtn" onClick={() => setReportOpen(true)} title="举报当前章节">
@@ -611,15 +619,15 @@ export default function Reader() {
                   <input
                     className="setting-slider"
                     type="range"
-                    min={50}
+                    min={20}
                     max={300}
                     step={5}
                     value={customScale}
                     onChange={(e) => update({ customScale: Number(e.target.value) })}
                     style={{
                       background: `linear-gradient(90deg, var(--accent) ${
-                        ((customScale - 50) / 250) * 100
-                      }%, var(--panel-2) ${((customScale - 50) / 250) * 100}%)`,
+                        ((customScale - 20) / 280) * 100
+                      }%, var(--panel-2) ${((customScale - 20) / 280) * 100}%)`,
                     }}
                   />
                   <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>

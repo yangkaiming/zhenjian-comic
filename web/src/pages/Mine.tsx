@@ -4,18 +4,28 @@ import { api, bridge } from '../api';
 import { useAuth } from '../store/auth';
 import { toast } from '../store/toast';
 import { READER_BG_LABELS, useSettings, type ReaderFit, type ReaderMode } from '../store/settings';
-import { versionLabel, isNewer, RELEASE_HIGHLIGHTS } from '../version';
+import { useUpdate } from '../store/update';
+import { versionLabel, RELEASE_HIGHLIGHTS } from '../version';
+import ReleaseNotes, { toSections, type NoteSection } from '../components/ReleaseNotes';
 import { Loading } from '../components/States';
 
 
 /** 后台管理工具（新增工具只需在此追加一项） */
-const ADMIN_TOOLS = [
+const ADMIN_TOOLS: Array<{
+  route: string;
+  icon: string;
+  title: string;
+  desc: string;
+  color: string;
+  badge?: 'reports' | 'feedback';
+}> = [
   {
     route: '/admin/reports',
     icon: '📋',
-    title: '反馈处理',
+    title: '举报与反馈',
     desc: '查看并处理用户的反馈与举报',
     color: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    badge: 'reports',
   },
   {
     route: '/admin/users',
@@ -41,11 +51,24 @@ const ADMIN_TOOLS = [
   {
     route: '/admin/feedback',
     icon: '💬',
-    title: '用户反馈',
+    title: '功能反馈',
     desc: '查看并回复用户提交的功能反馈',
     color: 'linear-gradient(135deg, #ec4899, #f43f5e)',
+    badge: 'feedback',
   },
 ];
+
+/** 只取日期部分（YYYY-MM-DD），去掉时分秒；非标准格式则原样返回 */
+function dateOnly(t?: string): string {
+  if (!t) return '';
+  const m = t.match(/\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : t;
+}
+
+/** 是否是合法的 http(s) 下载地址（过滤「请填写…」等占位文案） */
+function isHttpUrl(u?: string): u is string {
+  return !!u && /^https?:\/\//i.test(u);
+}
 
 export default function Mine() {
   const user = useAuth((s) => s.user);
@@ -63,40 +86,93 @@ export default function Mine() {
 
   const [nickname, setNickname] = useState(user?.nickname || '');
   const currentVersion = versionLabel(bridge?.appVersion);
-  const [checking, setChecking] = useState(false);
-  const [latest, setLatest] = useState<{ version: string; url: string; notes: string } | null>(null);
-  const [hasUpdate, setHasUpdate] = useState(false);
+  const latest = useUpdate((s) => s.latest);
+  const checking = useUpdate((s) => s.checking);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [verSel, setVerSel] = useState('');
+
+  // 版本信息弹窗：只展示「最新」与「当前」两个版本，供切换查看各自描述
+  type VerEntry = {
+    version: string;
+    buildTime: string;
+    notes: string | NoteSection[];
+    url: string;
+    isCurrent: boolean;
+    isLatest: boolean;
+  };
+  const versionList: VerEntry[] = (() => {
+    const list: VerEntry[] = [];
+    const seen = new Set<string>();
+    const push = (v: Omit<VerEntry, 'isCurrent' | 'isLatest'>) => {
+      if (!v.version || seen.has(v.version)) return;
+      seen.add(v.version);
+      list.push({ ...v, isCurrent: v.version === currentVersion, isLatest: false });
+    };
+    const cosVersions = latest?.versions || [];
+    const latestVer = latest?.version || cosVersions[0]?.version || '';
+    // 1) 最新版本（COS 第一条）
+    const latestEntry = cosVersions.find((v) => v.version === latestVer) || cosVersions[0];
+    if (latestEntry) {
+      push({ version: latestEntry.version, buildTime: latestEntry.buildTime || '', notes: latestEntry.notes, url: latestEntry.url || '' });
+    } else if (latestVer) {
+      push({ version: latestVer, buildTime: latest?.buildTime || '', notes: latest?.notes || '', url: latest?.url || '' });
+    }
+    // 2) 当前版本（与最新不同才加入；优先用 COS 说明，没有则用内置功能清单兜底）
+    if (currentVersion && currentVersion !== latestVer) {
+      const cur = cosVersions.find((v) => v.version === currentVersion);
+      if (cur) {
+        push({ version: cur.version, buildTime: cur.buildTime || '', notes: cur.notes, url: cur.url || '' });
+      } else {
+        push({
+          version: currentVersion,
+          buildTime: '',
+          notes: [{ title: '重要功能', items: RELEASE_HIGHLIGHTS.map((h) => `${h.title}：${h.desc}`) }],
+          url: '',
+        });
+      }
+    }
+    list.forEach((e) => (e.isLatest = e.version === latestVer));
+    return list;
+  })();
+  const activeVer = versionList.find((v) => v.version === verSel) || versionList.find((v) => v.isCurrent) || versionList[0];
+  const isAdminUser = user?.role === 'admin';
+  const [adminBadges, setAdminBadges] = useState({ reports: 0, feedback: 0 });
+  // 后台管理：超过 3 条默认折叠，仅展示前 3 项 + 展开按钮
+  const [adminCollapsed, setAdminCollapsed] = useState(true);
+  const ADMIN_VISIBLE = adminCollapsed ? ADMIN_TOOLS.slice(0, 3) : ADMIN_TOOLS;
+
+  // 后台管理：拉取未处理的举报 / 反馈数量，用于卡片图标角标（仅管理员，每 60s 刷新）
+  useEffect(() => {
+    if (!isAdminUser) return;
+    let stop = false;
+    const load = () => {
+      Promise.all([
+        api.reports({ limit: 1 }).then((r) => r.pending).catch(() => 0),
+        api.feedbackList({ limit: 1 }).then((r) => r.pending).catch(() => 0),
+      ]).then(([reports, feedback]) => {
+        if (!stop) setAdminBadges({ reports, feedback });
+      });
+    };
+    load();
+    const t = window.setInterval(load, 60000);
+    return () => {
+      stop = true;
+      window.clearInterval(t);
+    };
+  }, [isAdminUser]);
 
   const checkUpdate = async () => {
-    setChecking(true);
-    try {
-      const info = await api.appLatest();
-      setLatest(info);
-      if (info.version && isNewer(info.version, currentVersion)) {
-        setHasUpdate(true);
-        toast.success(`发现新版本 v${info.version}`);
-      } else {
-        setHasUpdate(false);
-        toast.success('已是最新版本');
-      }
-    } catch {
-      toast.error('检查更新失败');
-    } finally {
-      setChecking(false);
-    }
+    await useUpdate.getState().check();
+    const s = useUpdate.getState();
+    // 有新版本：直接打开版本信息弹窗（内含说明与更新按钮）；否则提示已是最新
+    if (s.latest?.version && s.hasUpdate) setAboutOpen(true);
+    else toast.success('已是最新版本');
   };
 
-  // 查看版本信息：打开即尽力拉取一次更新说明（失败也不影响看版本号）
+  // 查看版本信息：打开即刷新一次更新说明（失败也不影响看版本号）
   const openAbout = async () => {
     setAboutOpen(true);
-    if (!latest) {
-      try {
-        setLatest(await api.appLatest());
-      } catch {
-        /* 忽略 */
-      }
-    }
+    await useUpdate.getState().check();
   };
 
   // 后台管理页：优先在独立二级窗口打开；若 IPC 不可用则回退为站内导航
@@ -244,7 +320,7 @@ export default function Mine() {
               <input
                 className="setting-slider"
                 type="range"
-                min={50}
+                min={20}
                 max={300}
                 step={5}
                 value={customScale}
@@ -309,7 +385,7 @@ export default function Mine() {
             以下工具在独立窗口打开，便于对照主窗口操作。
           </div>
           <div className="admin-grid">
-            {ADMIN_TOOLS.map((t) => (
+            {ADMIN_VISIBLE.map((t) => (
               <button
                 className="admin-card"
                 key={t.route}
@@ -317,6 +393,9 @@ export default function Mine() {
               >
                 <span className="admin-card-icon" style={{ background: t.color }}>
                   {t.icon}
+                  {t.badge && adminBadges[t.badge] > 0 && (
+                    <span className="admin-badge">{adminBadges[t.badge] > 99 ? '99+' : adminBadges[t.badge]}</span>
+                  )}
                 </span>
                 <span className="admin-card-body">
                   <span className="admin-card-title">{t.title}</span>
@@ -326,6 +405,12 @@ export default function Mine() {
               </button>
             ))}
           </div>
+          {ADMIN_TOOLS.length > 3 && (
+            <button className="admin-toggle" onClick={() => setAdminCollapsed((v) => !v)}>
+              {adminCollapsed ? `展开全部（${ADMIN_TOOLS.length}）` : '收起'}
+              <span className="admin-toggle-arrow">{adminCollapsed ? '▾' : '▴'}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -348,23 +433,7 @@ export default function Mine() {
           <button className="btn" onClick={checkUpdate} disabled={checking}>
             {checking ? '检查中…' : '检查更新'}
           </button>
-          {hasUpdate && latest && (
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                if (latest.url) window.open(latest.url, '_blank');
-                else toast.info('暂未配置更新地址');
-              }}
-            >
-              更新到 v{latest.version}
-            </button>
-          )}
         </div>
-        {hasUpdate && latest?.notes && (
-          <div className="muted" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-            {latest.notes}
-          </div>
-        )}
       </div>
 
       <div className="panel">
@@ -379,13 +448,7 @@ export default function Mine() {
       {aboutOpen && (
         <div className="modal-mask" onClick={() => setAboutOpen(false)}>
           <div className="modal about-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              版本信息
-              <div className="spacer" />
-              <button className="btn btn-ghost" onClick={() => setAboutOpen(false)}>
-                关闭
-              </button>
-            </div>
+            <div className="modal-head">版本信息</div>
             <div className="modal-body">
               <div className="about-hero">
                 <div className="about-logo">帧</div>
@@ -401,33 +464,54 @@ export default function Mine() {
                 帧间漫画是一款基于 Electron 的漫画阅读器，聚合多个公开数据源，支持在线阅读、书架与进度同步、评论互动与后台管理。
               </div>
               <div className="about-highlights">
+                {versionList.length > 1 && (
+                  <div className="ver-switch">
+                    {versionList.map((v) => (
+                      <button
+                        key={v.version}
+                        className={`ver-pill${v.version === activeVer?.version ? ' active' : ''}`}
+                        onClick={() => setVerSel(v.version)}
+                      >
+                        <span className="ver-pill-v">v{v.version}</span>
+                        {v.isCurrent && <span className="ver-tag cur">当前</span>}
+                        {v.isLatest && !v.isCurrent && <span className="ver-tag new">最新</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="about-notes-title">
-                  本版本重要功能
-                  <span className="about-count">共 {RELEASE_HIGHLIGHTS.length} 项</span>
+                  <span>v{activeVer?.version || currentVersion} 更新说明</span>
+                  {activeVer?.buildTime && <span className="ver-time">🕒 {dateOnly(activeVer.buildTime)}</span>}
                 </div>
-                <ul className="about-highlight-list">
-                  {RELEASE_HIGHLIGHTS.map((h) => (
-                    <li key={h.title} className="about-highlight-item">
-                      <span className="about-highlight-title">{h.title}</span>
-                      <span className="muted about-highlight-desc">{h.desc}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="about-notes-scroll">
+                  {activeVer && toSections(activeVer.notes).length > 0 ? (
+                    <ReleaseNotes notes={activeVer.notes} />
+                  ) : (
+                    <div className="muted">暂无更新说明</div>
+                  )}
+                </div>
               </div>
-              {latest?.notes && (
-                <div className="about-notes">
-                  <div className="about-notes-title">更新说明{latest.version ? `（v${latest.version}）` : ''}</div>
-                  <div className="muted about-notes-body">{latest.notes}</div>
-                </div>
-              )}
             </div>
             <div className="row" style={{ justifyContent: 'flex-end', gap: 8, padding: '0 20px 18px' }}>
               <button className="btn" onClick={() => setAboutOpen(false)}>
                 关闭
               </button>
-              <button className="btn btn-primary" onClick={checkUpdate} disabled={checking}>
-                {checking ? '检查中…' : '检查更新'}
-              </button>
+              {/* 仅当正在查看「最新（且非当前）」版本时才显示更新按钮；看当前版本只显示关闭 */}
+              {activeVer?.isLatest && !activeVer?.isCurrent && (
+                <button
+                  className="btn btn-primary"
+                  disabled={!isHttpUrl(latest?.url)}
+                  onClick={() => {
+                    const url = latest?.url;
+                    if (isHttpUrl(url)) {
+                      bridge?.openExternal?.(url);
+                      bridge?.quitApp?.();
+                    }
+                  }}
+                >
+                  {isHttpUrl(latest?.url) ? `更新到 v${latest?.version}` : '暂未提供下载地址'}
+                </button>
+              )}
             </div>
           </div>
         </div>
