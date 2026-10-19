@@ -23,6 +23,8 @@ function step(name, cmd, args, opts = {}) {
 }
 
 let ok = step('build', 'npm', ['run', 'build']);
+// 打包时压缩/混淆产物，降低源码被直接阅读的风险（仅影响 dist 流程，不波及日常 build 调试）
+if (ok) ok = step('minify (压缩混淆产物)', 'node', ['scripts/minify.cjs']);
 if (ok) {
   const env = {
     ...process.env,

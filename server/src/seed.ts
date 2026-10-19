@@ -1,9 +1,7 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import { Comic } from './models/Comic';
 import { Chapter } from './models/Chapter';
 import { Comment } from './models/Comment';
-import { User } from './models/User';
 import { SEED_COMICS, CHAPTER_SUBTITLES } from './data/comics';
 import { getCrawledComics } from './data/crawled';
 import { buildCoverUrl, buildBannerUrl } from './services/media';
@@ -84,41 +82,7 @@ const DEMO_COMMENTS = [
   '适合深夜慢慢看，很治愈。',
 ];
 
-/**
- * 确保存在默认管理员账号：
- * - 若已存在 yangkaiming，则不改动（保留用户后续自行修改的凭据）；
- * - 否则若库里仍有旧 demo 默认管理员，则将其改名为 yangkaiming 并重置密码/角色；
- * - 否则在缺失时新建一个 yangkaiming 管理员。
- * 该步骤在 seedDatabase 早期执行，即便库里已有漫画数据也会生效。
- */
-async function ensureDefaultAdmin(): Promise<void> {
-  const DEF = { username: 'yangkaiming', password: 'yang152027', nickname: '管理员' };
-
-  const exists = await User.findOne({ username: DEF.username });
-  if (exists) return;
-
-  const demo = await User.findOne({ username: 'demo' });
-  if (demo) {
-    demo.username = DEF.username;
-    demo.password = bcrypt.hashSync(DEF.password, 8);
-    demo.nickname = DEF.nickname;
-    demo.role = 'admin';
-    await demo.save();
-    console.log(`[seed] 已将默认管理员账号由 demo 更名为 ${DEF.username}`);
-    return;
-  }
-
-  await User.create({
-    username: DEF.username,
-    password: bcrypt.hashSync(DEF.password, 8),
-    nickname: DEF.nickname,
-    role: 'admin',
-  });
-  console.log(`[seed] 已创建默认管理员账号 ${DEF.username}`);
-}
-
 export async function seedDatabase(options: { force?: boolean } = {}): Promise<void> {
-  await ensureDefaultAdmin();
   const count = await Comic.estimatedDocumentCount();
   if (count > 0 && !options.force) {
     console.log('[seed] 数据库已有数据，跳过初始化');

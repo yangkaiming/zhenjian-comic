@@ -1072,6 +1072,127 @@ textarea.input {
   }
 }
 
+/* 阅读器图片加载 / 失败 占位容器 */
+.reader-img-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 320px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* 图片加载失败：可点击整块刷新重试 */
+.reader-img-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 24px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.reader-img-error:hover {
+  border-color: var(--accent);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.reader-img-error-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 77, 79, 0.12);
+  color: #ff4d4f;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1;
+}
+.reader-img-error-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.reader-img-error-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 280px;
+}
+.reader-img-retry {
+  margin-top: 4px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* 整章加载失败：明确提示 + 操作 */
+.reader-chapter-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 48px 24px;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.reader-chapter-error-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 77, 79, 0.12);
+  color: #ff4d4f;
+  font-weight: 800;
+  font-size: 32px;
+  line-height: 1;
+}
+.reader-chapter-error-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+.reader-chapter-error-hint {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.reader-chapter-error-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+/* 章节加载成功但无图（数据源未收录 / 链接失效） */
+.reader-empty-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 60px 24px;
+}
+.reader-empty-pages-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ---------- 首页快捷搜索 ---------- */
 .home-search {
   display: flex;

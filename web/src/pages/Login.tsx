@@ -6,10 +6,35 @@ import { toast } from '../store/toast';
 const REMEMBER_ACC_KEY = 'zj_remember_account';
 const REMEMBER_PWD_KEY = 'zj_remember_password';
 
+// 记住密码时仅做可逆混淆后再落盘，避免密码以明文形式出现在 localStorage
+const PWD_KEY_XOR = 'zj_comic_pwd_2024';
+function xorEncode(s: string): string {
+  let o = '';
+  for (let i = 0; i < s.length; i += 1) {
+    o += String.fromCharCode(s.charCodeAt(i) ^ PWD_KEY_XOR.charCodeAt(i % PWD_KEY_XOR.length));
+  }
+  return btoa(unescape(encodeURIComponent(o)));
+}
+function xorDecode(b: string): string {
+  try {
+    const o = decodeURIComponent(escape(atob(b)));
+    let s = '';
+    for (let i = 0; i < o.length; i += 1) {
+      s += String.fromCharCode(o.charCodeAt(i) ^ PWD_KEY_XOR.charCodeAt(i % PWD_KEY_XOR.length));
+    }
+    return s;
+  } catch {
+    return '';
+  }
+}
+
 export default function Login() {
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState(() => localStorage.getItem(REMEMBER_ACC_KEY) || '');
-  const [password, setPassword] = useState(() => localStorage.getItem(REMEMBER_PWD_KEY) || '');
+  const [password, setPassword] = useState(() => {
+    const v = localStorage.getItem(REMEMBER_PWD_KEY);
+    return v ? xorDecode(v) : '';
+  });
   const [nickname, setNickname] = useState('');
   const [rememberAcc, setRememberAcc] = useState(() => !!localStorage.getItem(REMEMBER_ACC_KEY));
   const [rememberPwd, setRememberPwd] = useState(() => !!localStorage.getItem(REMEMBER_PWD_KEY));
@@ -30,7 +55,7 @@ export default function Login() {
         // 登录成功后按勾选情况存/清缓存
         if (rememberAcc) localStorage.setItem(REMEMBER_ACC_KEY, username.trim());
         else localStorage.removeItem(REMEMBER_ACC_KEY);
-        if (rememberPwd) localStorage.setItem(REMEMBER_PWD_KEY, password);
+        if (rememberPwd) localStorage.setItem(REMEMBER_PWD_KEY, xorEncode(password));
         else localStorage.removeItem(REMEMBER_PWD_KEY);
         toast.success('登录成功');
       } else {

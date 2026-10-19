@@ -1,6 +1,6 @@
 {
   "name": "zhenjian-comic",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "帧间漫画桌面端",
   "main": "dist-electron/main.js",
@@ -40,6 +40,7 @@
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "@types/node": "^22.9.0"

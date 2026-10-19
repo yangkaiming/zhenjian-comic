@@ -56,7 +56,7 @@ function escapeRegExp(str: string): string {
 
 router.post('/login', async (req: Request, res: Response) => {
   const { username, password } = req.body || {};
-  const user = await User.findOne({ username: String(username || '') });
+  const user = await User.findOne({ username: String(username || '') }).select('+password');
   if (!user) return res.status(401).json({ message: '账号不存在' });
   const ok = bcrypt.compareSync(String(password || ''), user.password);
   if (!ok) return res.status(401).json({ message: '密码错误' });

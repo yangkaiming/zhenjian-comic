@@ -26,5 +26,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1500,
+    // 生产构建压缩（缩短标识符），并显式关闭 sourcemap，避免源码映射随包分发
+    minify: 'esbuild',
+    sourcemap: false,
   },
 });

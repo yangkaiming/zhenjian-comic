@@ -8,8 +8,16 @@ import { READER_BG_COLORS, READER_BG_LABELS, useSettings, type ReaderFit, type R
 import ReportModal, { type ReportContext } from '../components/ReportModal';
 
 /* 带加载/失败状态的图片：不使用原生 lazy（Electron 下易整页加载失败），改为显式 loading 占位 */
-function ReaderImage({ url, alt, style, onContextMenu }: { url: string; alt: string; style?: CSSProperties; onContextMenu?: (e: ReactMouseEvent) => void }) {
+function ReaderImage({ url, alt, style, onContextMenu, onRetry }: {
+  url: string;
+  alt: string;
+  style?: CSSProperties;
+  onContextMenu?: (e: ReactMouseEvent) => void;
+  /** 整章刷新重试（一般由阅读器传入 reloadChapter）：点击失败提示时重拉整章，刷新可能过期的图片签名 */
+  onRetry?: () => void;
+}) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(url ? 'loading' : 'error');
+  const [retry, setRetry] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   // 兜底：缓存命中的图片，load 事件可能在挂载并绑定 onLoad 前就已触发，导致 onLoad 永不回调。
@@ -19,7 +27,16 @@ function ReaderImage({ url, alt, style, onContextMenu }: { url: string; alt: str
     if (el && el.complete) {
       setStatus(el.naturalWidth > 0 ? 'loaded' : 'error');
     }
-  }, [url]);
+  }, [url, retry]);
+
+  const handleRetry = () => {
+    if (onRetry) {
+      onRetry();
+      return;
+    }
+    setStatus('loading');
+    setRetry((n) => n + 1);
+  };
 
   return (
     <>
@@ -31,17 +48,23 @@ function ReaderImage({ url, alt, style, onContextMenu }: { url: string; alt: str
               <span>图片加载中…</span>
             </>
           ) : (
-            <span>图片加载失败</span>
+            <button type="button" className="reader-img-error" onClick={handleRetry}>
+              <span className="reader-img-error-icon">!</span>
+              <span className="reader-img-error-title">图片加载失败</span>
+              <span className="reader-img-error-hint">可能是网络波动、图片链接失效或服务端图片代理异常</span>
+              <span className="reader-img-retry">↻ 刷新重试</span>
+            </button>
           )}
         </div>
       )}
       {url && (
         <img
+          key={retry}
           ref={imgRef}
           className={`reader-img-el${status === 'loaded' ? ' is-loaded' : ''}`}
           src={pageImageUrl(url)}
           alt={alt}
-          style={style}
+          style={{ ...style, display: status === 'error' ? 'none' : undefined }}
           draggable={false}
           decoding="async"
           onContextMenu={onContextMenu}
@@ -65,14 +88,20 @@ export default function Reader() {
   const [payload, setPayload] = useState<ChapterPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [pageNo, setPageNo] = useState(1);
+  const [reloading, setReloading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [chapters, setChapters] = useState<Array<{ _id: string; index: number; title: string }>>([]);
-  const [showBar, setShowBar] = useState(true);
+  const [showBar, setShowBar] = useState(false);
   const [drawer, setDrawer] = useState<'none' | 'chapters' | 'settings'>('none');
+  // 目录抽屉：当前章节项引用，打开时自动滚动定位到在读章节
+  const activeChapterRef = useRef<HTMLDivElement | null>(null);
   const [imgMenu, setImgMenu] = useState<{ x: number; y: number; url: string; name: string } | null>(null);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
   const [reportOpen, setReportOpen] = useState(false);
+  // 整章加载失败（与单纯图片失败区分）：用于展示整章错误屏而非空白
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const mode = useSettings((s) => s.mode);
   const fit = useSettings((s) => s.fit);
@@ -100,6 +129,7 @@ export default function Reader() {
     if (!chapterId) return;
     let alive = true;
     setLoading(true);
+    setLoadError(null);
     api
       .chapter(chapterId)
       .then((data) => {
@@ -110,12 +140,47 @@ export default function Reader() {
           .then((r) => setChapters(r.items.map((i) => ({ _id: i._id, index: i.index, title: i.title }))))
           .catch(() => setChapters([]));
       })
-      .catch(() => toast.error('章节加载失败'))
+      .catch((err) => {
+        setLoadError(err instanceof Error ? err.message : '章节加载失败');
+        toast.error('章节加载失败');
+      })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
   }, [chapterId]);
+
+  /* 刷新当前章节：整页进入加载态并重新拉取数据（刷新可能过期的图片签名 / 卡死状态），强制图片重挂载，保留当前页码 */
+  const reloadChapter = useCallback(() => {
+    if (!chapterId) return;
+    setReloading(true);
+    setLoading(true);
+    api
+      .chapter(chapterId)
+      .then((data) => {
+        setLoadError(null);
+        setPayload(data);
+        api
+          .chapters(data.comic._id, 1, 500)
+          .then((r) => setChapters(r.items.map((i) => ({ _id: i._id, index: i.index, title: i.title }))))
+          .catch(() => setChapters([]));
+      })
+      .catch(() => toast.error('章节刷新失败'))
+      .finally(() => {
+        setReloading(false);
+        setLoading(false);
+      });
+    setReloadKey((k) => k + 1);
+  }, [chapterId]);
+
+  /* 打开目录抽屉时，自动滚动定位到当前在读章节 */
+  useEffect(() => {
+    if (drawer !== 'chapters' || !activeChapterRef.current) return;
+    const t = setTimeout(() => {
+      activeChapterRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [drawer, chapters, chapterId]);
 
   const initialPage = Math.min(total, Math.max(1, Number(params.get('p') || 1)));
   useEffect(() => {
@@ -297,26 +362,52 @@ export default function Reader() {
         setDrawer('chapters');
       } else if (e.key === 's' || e.key === 'S') {
         setDrawer('settings');
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        reloadChapter();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [drawer, mode, nextPage, prevPage, fullscreen, toggleFullscreen, backToDetail, zoomUrl, closeZoom, zoomBy]);
+  }, [drawer, mode, nextPage, prevPage, fullscreen, toggleFullscreen, backToDetail, zoomUrl, closeZoom, zoomBy, reloadChapter]);
 
-  const wake = useCallback(() => {
-    setShowBar(true);
-    if (idleTimer.current) window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => {
-      if (drawer === 'none') setShowBar(false);
-    }, 2600);
-  }, [drawer]);
+  // 顶栏显隐：鼠标进入顶部区域才显示；离开顶部区域 2 秒后自动隐藏（菜单/设置抽屉打开时常驻显示）
+  const BAR_TOP_ZONE = 72; // 顶部触发区高度(px)
+  const onReaderMouseMove = useCallback(
+    (e: ReactMouseEvent) => {
+      if (drawer !== 'none') {
+        if (idleTimer.current) {
+          clearTimeout(idleTimer.current);
+          idleTimer.current = null;
+        }
+        setShowBar(true);
+        return;
+      }
+      if (e.clientY <= BAR_TOP_ZONE) {
+        // 在顶部区域：显示并取消隐藏计时
+        if (idleTimer.current) {
+          clearTimeout(idleTimer.current);
+          idleTimer.current = null;
+        }
+        setShowBar(true);
+      } else if (!idleTimer.current) {
+        // 离开顶部：启动 2 秒隐藏计时（仅在尚未计时时启动，避免在底部移动反复重置）
+        idleTimer.current = window.setTimeout(() => {
+          setShowBar(false);
+          idleTimer.current = null;
+        }, 2000);
+      }
+    },
+    [drawer],
+  );
 
   useEffect(() => {
-    wake();
+    // 打开目录/设置抽屉时立即显示顶栏（点击不一定触发 mousemove）
+    if (drawer !== 'none') setShowBar(true);
     return () => {
-      if (idleTimer.current) window.clearTimeout(idleTimer.current);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [wake]);
+  }, [drawer]);
 
   /* ---------- 离线缓存 ---------- */
   const imgStyle: CSSProperties = useMemo(() => {
@@ -328,6 +419,25 @@ export default function Reader() {
 
   // 阅读器背景：非“跟随主题”时用固定色覆盖画布背景
   const canvasBg = readerBg !== 'theme' ? { background: READER_BG_COLORS[readerBg] } : undefined;
+
+  // 整章加载失败：明确提示 + 刷新重试，避免卡在「加载中」或空白只剩下一话
+  if (loadError && !loading) {
+    return (
+      <div className="reader bg-dark">
+        <div className="reader-canvas" style={canvasBg}>
+          <div className="reader-chapter-error">
+            <div className="reader-chapter-error-icon">!</div>
+            <div className="reader-chapter-error-title">章节加载失败</div>
+            <div className="reader-chapter-error-hint">{loadError}</div>
+            <div className="reader-chapter-error-actions">
+              <button className="btn btn-primary" onClick={reloadChapter}>↻ 刷新重试</button>
+              <button className="btn btn-ghost" onClick={backToDetail}>返回详情</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !payload || !chapter) {
     return (
@@ -376,15 +486,22 @@ export default function Reader() {
   const dim = brightness < 100 ? { opacity: (100 - brightness) / 100 * 0.75 } : undefined;
 
   return (
-    <div className={`reader fit-${fit}${gap ? ' gap' : ''}`} onMouseMove={wake}>
+    <div className={`reader fit-${fit}${gap ? ' gap' : ''}`} onMouseMove={onReaderMouseMove}>
       <div className="reader-canvas" style={canvasBg}>
         {mode === 'scroll' ? (
           <div className="reader-scroll" ref={scrollRef} onScroll={onScroll}>
             <div className="reader-pages" style={{ width: '100%', maxWidth: fit === 'origin' || fit === 'custom' ? 'none' : 1100 }}>
+              {pages.length === 0 && (
+                <div className="reader-empty-pages">
+                  <div className="reader-empty-pages-title">本章暂无图片内容</div>
+                  <div className="muted">可能是数据源未收录、图片链接失效或服务端图片代理异常。</div>
+                  <button className="btn btn-primary" onClick={reloadChapter}>↻ 刷新重试</button>
+                </div>
+              )}
               {pages.map((p, i) => (
                 <div
                   className="reader-page"
-                  key={p.index}
+                  key={`${reloadKey}-${p.index}`}
                   ref={(el) => {
                     pageRefs.current[i] = el;
                   }}
@@ -394,6 +511,7 @@ export default function Reader() {
                     url={p.url}
                     alt={`第 ${p.index} 页`}
                     style={imgStyle}
+                    onRetry={reloadChapter}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       const name = `${comic?.title || 'comic'}-${chapter?.title || 'chapter'}-P${p.index}`.replace(
@@ -413,7 +531,7 @@ export default function Reader() {
               <div style={{ padding: '30px 0 80px', textAlign: 'center' }}>
                 {chapter.nextId ? (
                   <button className="btn btn-primary" onClick={() => gotoChapter(chapter.nextId)}>
-                    下一话：{chapter.index + 1} →
+                    下一话 →
                   </button>
                 ) : (
                   <span className="muted">已完成本章，敬请期待更新</span>
@@ -424,9 +542,10 @@ export default function Reader() {
         ) : (
           <div className="reader-single">
             <ReaderImage
-              key={pageNo}
+              key={`${reloadKey}-${pageNo}`}
               url={pages[pageNo - 1]?.url || ''}
               alt={`第 ${pageNo} 页`}
+              onRetry={reloadChapter}
               onContextMenu={(e) => {
                 e.preventDefault();
                 const name = `${comic?.title || 'comic'}-${chapter?.title || 'chapter'}-P${pageNo}`.replace(
@@ -500,32 +619,25 @@ export default function Reader() {
           <button className="rbtn" onClick={() => setReportOpen(true)} title="举报当前章节">
             举报
           </button>
+          <button className="rbtn" onClick={reloadChapter} disabled={reloading} title="刷新当前章节（R）">
+            <span className={reloading ? 'rspin' : ''}>↻</span>
+            {reloading ? '刷新中' : '刷新'}
+          </button>
           {win && (
-            <button className="rbtn" onClick={toggleFullscreen} title="F / F11 也可切换">
-              {fullscreen ? '退出全屏' : '全屏'}
-            </button>
+            <>
+              <button className="rbtn" onClick={() => win.winMinimize()} title="最小化窗口">
+                最小化
+              </button>
+              <button className="rbtn" onClick={toggleFullscreen} title="F / F11 也可切换">
+                {fullscreen ? '退出全屏' : '全屏'}
+              </button>
+            </>
           )}
         </div>
 
-        {/* 底栏 */}
-        <div className={`reader-foot${showBar ? '' : ' hidden'}`}>
-          <button className="rbtn" onClick={prevPage}>
-            ←
-          </button>
-          <input
-            className="reader-slider"
-            type="range"
-            min={1}
-            max={total}
-            value={pageNo}
-            onChange={(e) => goPage(Number(e.target.value))}
-          />
-          <span className="reader-page-no">
-            {pageNo} / {total}
-          </span>
-          <button className="rbtn" onClick={nextPage}>
-            →
-          </button>
+        {/* 右下角页码指示（小字，不占底部空间） */}
+        <div className="reader-page-indicator">
+          {pageNo}/{total}
         </div>
 
         {fullscreen && <div className="reader-fs-hint">按 Esc 或 F 退出全屏</div>}
@@ -544,6 +656,7 @@ export default function Reader() {
             {chapters.map((c) => (
               <div
                 key={c._id}
+                ref={c._id === chapterId ? activeChapterRef : undefined}
                 className={`chapter-mini${c._id === chapterId ? ' active' : ''}`}
                 onClick={() => {
                   setDrawer('none');
